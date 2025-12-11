@@ -24,9 +24,12 @@ export const CartPage = () => {
   }
 
   return (
-    <div className="grid" style={{ gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
+    <div
+      className="grid"
+      style={{ gridTemplateColumns: '2fr 1fr', gap: '2rem', alignItems: 'flex-start' }}
+    >
       <div>
-        <h2>Giỏ hàng</h2>
+        <h2 style={{ margin: '0 0 1rem' }}>Giỏ hàng</h2>
         <CartList
           items={items}
           onIncrease={(item) => changeQuantity(item, item.quantity + 1)}
@@ -34,7 +37,7 @@ export const CartPage = () => {
           onRemove={(item) => removeFromCart(item)}
         />
       </div>
-      <div className="card" style={{ position: 'sticky', top: 20, height: 'fit-content' }}>
+      <div className="card" style={{ position: 'sticky', top: 0, height: 'fit-content',marginTop: '50px' }}>
         <h3>Tổng kết</h3>
         <div style={{ display: 'flex', justifyContent: 'space-between', margin: '1rem 0' }}>
           <span>Tạm tính</span>
