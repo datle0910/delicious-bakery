@@ -10,7 +10,11 @@ import java.util.Optional;
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long> {
     Optional<Product> findBySlug(String slug);
+
     List<Product> findByCategoryId(Long categoryId);
+
     List<Product> findByNameContainingIgnoreCase(String keyword);
 
+    // Kiểm tra xem một danh mục có chứa sản phẩm hay không (dùng cho ràng buộc xóa)
+    boolean existsByCategoryId(Long categoryId);
 }

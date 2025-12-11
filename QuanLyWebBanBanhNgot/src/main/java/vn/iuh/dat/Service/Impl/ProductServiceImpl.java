@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import vn.iuh.dat.Entity.Product;
 import vn.iuh.dat.Repository.CategoryRepository;
 import vn.iuh.dat.Repository.ProductRepository;
+import vn.iuh.dat.Repository.OrderItemRepository;
 import vn.iuh.dat.Service.IProductService;
 import vn.iuh.dat.dto.Response.ProductDTO;
 
@@ -16,6 +17,7 @@ import java.util.List;
 public class ProductServiceImpl implements IProductService {
     private final ProductRepository repo;
     private final CategoryRepository categoryRepo;
+    private final OrderItemRepository orderItemRepo;
     private final ModelMapper mapper = new ModelMapper();
 
     @Override
@@ -38,6 +40,14 @@ public class ProductServiceImpl implements IProductService {
         p.setStock(dto.getStock());
         p.setImage(dto.getImage());
         p.setDescription(dto.getDescription());
+        p.setIngredients(dto.getIngredients());
+        p.setAllergens(dto.getAllergens());
+        p.setWeight(dto.getWeight());
+        p.setShelfLife(dto.getShelfLife());
+        p.setStorageInstructions(dto.getStorageInstructions());
+        p.setIsFeatured(dto.getIsFeatured() != null ? dto.getIsFeatured() : false);
+        p.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
+        p.setUnit(dto.getUnit());
         if (dto.getCategoryId() != null)
             p.setCategory(categoryRepo.findById(dto.getCategoryId()).orElse(null));
         return toDTO(repo.save(p));
@@ -45,6 +55,11 @@ public class ProductServiceImpl implements IProductService {
 
     @Override
     public void deleteById(Long id) {
+        // Ràng buộc: không cho phép xóa sản phẩm đã xuất hiện trong đơn hàng
+        boolean usedInOrder = orderItemRepo.existsByProductId(id);
+        if (usedInOrder) {
+            throw new RuntimeException("Không thể xóa sản phẩm vì đã xuất hiện trong đơn hàng.");
+        }
         repo.deleteById(id);
     }
 
@@ -60,6 +75,10 @@ public class ProductServiceImpl implements IProductService {
 
     private ProductDTO toDTO(Product p) {
         ProductDTO dto = mapper.map(p, ProductDTO.class);
+        if (p.getCategory() != null) {
+            dto.setCategoryId(p.getCategory().getId());
+            dto.setCategoryName(p.getCategory().getName());
+        }
         return dto;
     }
     private Product toEntity(ProductDTO dto) {

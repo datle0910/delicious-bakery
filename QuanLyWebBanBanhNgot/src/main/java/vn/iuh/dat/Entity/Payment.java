@@ -1,8 +1,10 @@
 package vn.iuh.dat.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -11,36 +13,44 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@ToString
 public class Payment {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne
+    @JsonIgnore
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false, unique = true)
     private Order order;
 
-    @Column(name = "amount", nullable = false)
-    private double amount; // hoặc BigDecimal nếu nghiêm túc
+    @Column(nullable = false)
+    private Double amount;
 
-    @Column(name = "method", length = 50, nullable = false)
-    private String method; // ex: COD, VNPAY, MOMO
+    @Column(length = 50, nullable = false)
+    private String method; // CASH, STRIPE
 
-    @Column(name = "transaction_id", length = 255)
-    private String transactionId; // mã giao dịch cổng thanh toán
+    @Column(length = 255)
+    private String transactionId;
 
-    @Column(name = "status", length = 30, nullable = false)
-    private String status; // ex: PENDING, PAID, FAILED, REFUNDED
+    @Column(length = 30, nullable = false)
+    private String status; // PENDING, PAID, FAILED
 
-    @Column(name = "paid_at")
     private LocalDateTime paidAt;
-
-    @Column(name = "created_at")
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     @PrePersist
-    protected void onCreate() {
+    protected void prePersist() {
         createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+
+        if (amount == null)
+            amount = 0.0;
+    }
+
+    @PreUpdate
+    protected void preUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 }

@@ -45,6 +45,12 @@ public class ReviewServiceImpl implements IReviewService {
         Product product = productRepo.findById(dto.getProductId())
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
+        // Check if user has already reviewed this product
+        repo.findByUserIdAndProductId(dto.getUserId(), dto.getProductId())
+                .ifPresent(existingReview -> {
+                    throw new RuntimeException("You have already reviewed this product. You can edit or delete your existing review.");
+                });
+
         Review r = new Review();
         r.setUser(user);
         r.setProduct(product);
@@ -62,9 +68,19 @@ public class ReviewServiceImpl implements IReviewService {
         Review r = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Review not found"));
 
-        if (dto.getRating() > 0) r.setRating(dto.getRating());
-        if (dto.getComment() != null && !dto.getComment().isBlank())
+        // Security check: ensure user can only update their own review
+        if (!r.getUser().getId().equals(dto.getUserId())) {
+            throw new RuntimeException("You can only update your own reviews");
+        }
+
+        // Update rating if provided
+        if (dto.getRating() > 0) {
+            r.setRating(dto.getRating());
+        }
+        // Update comment if provided
+        if (dto.getComment() != null && !dto.getComment().isBlank()) {
             r.setComment(dto.getComment());
+        }
 
         r.setUpdatedAt(LocalDateTime.now());
 
@@ -73,9 +89,15 @@ public class ReviewServiceImpl implements IReviewService {
     }
 
     @Override
-    public void deleteById(Long id) {
-        if (!repo.existsById(id))
-            throw new RuntimeException("Review not found");
+    public void deleteById(Long id, Long userId) {
+        Review r = repo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Review not found"));
+        
+        // Security check: ensure user can only delete their own review
+        if (!r.getUser().getId().equals(userId)) {
+            throw new RuntimeException("You can only delete your own reviews");
+        }
+        
         repo.deleteById(id);
     }
 
@@ -87,6 +109,13 @@ public class ReviewServiceImpl implements IReviewService {
     @Override
     public List<ReviewDTO> getByUser(Long userId) {
         return repo.findByUserId(userId).stream().map(this::toDTO).toList();
+    }
+
+    @Override
+    public ReviewDTO getByUserAndProduct(Long userId, Long productId) {
+        return repo.findByUserIdAndProductId(userId, productId)
+                .map(this::toDTO)
+                .orElse(null);
     }
 
     private ReviewDTO toDTO(Review r) {

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.iuh.dat.Service.IOrderService;
+import vn.iuh.dat.dto.Request.CheckoutRequestDTO;
 import vn.iuh.dat.dto.Response.OrderDTO;
 
 import java.util.List;
@@ -16,8 +17,11 @@ public class OrderController {
     private final IOrderService service;
 
     @PostMapping("/checkout/{userId}")
-    public ResponseEntity<OrderDTO> checkout(@PathVariable Long userId) {
-        return ResponseEntity.ok(service.checkout(userId));
+    public ResponseEntity<OrderDTO> checkout(
+            @PathVariable Long userId,
+            @RequestBody CheckoutRequestDTO request
+    ) {
+        return ResponseEntity.ok(service.checkout(userId, request));
     }
 
     @GetMapping("/{id}")

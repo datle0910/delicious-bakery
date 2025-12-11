@@ -4,7 +4,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.iuh.dat.Service.IPaymentService;
+import vn.iuh.dat.dto.Request.StripePaymentIntentRequest;
 import vn.iuh.dat.dto.Response.PaymentDTO;
+import vn.iuh.dat.dto.Response.StripePaymentIntentResponse;
 
 import java.util.List;
 
@@ -24,6 +26,13 @@ public class PaymentController {
     public ResponseEntity<List<PaymentDTO>> findAll() {
         return ResponseEntity.ok(service.findAll());
     }
+
+    @PostMapping("/stripe/create-payment-intent")
+    public ResponseEntity<StripePaymentIntentResponse> createPaymentIntent(
+            @RequestBody StripePaymentIntentRequest request) {
+        return ResponseEntity.ok(service.createStripePaymentIntent(request));
+    }
+
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<PaymentDTO> updateStatus(

@@ -6,8 +6,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.iuh.dat.Service.AuthService;
 import vn.iuh.dat.Service.IUserService;
+import vn.iuh.dat.Service.OtpService;
 import vn.iuh.dat.dto.Request.IntroSpectRequest;
 import vn.iuh.dat.dto.Request.LoginRequestDTO;
+import vn.iuh.dat.dto.Request.RegisterWithOtpDTO;
 import vn.iuh.dat.dto.Response.IntroSpectResponse;
 import vn.iuh.dat.dto.Response.LoginResponseDTO;
 import vn.iuh.dat.dto.Request.UserRequestDTO;
@@ -19,10 +21,21 @@ import vn.iuh.dat.dto.Response.UserResponseDTO;
 public class AuthController {
     private final IUserService userService;
     private final AuthService authService;
+    private final OtpService otpService;
 
     @PostMapping("/register")
-    public ResponseEntity<UserResponseDTO> register(@RequestBody @Valid UserRequestDTO dto) {
-        return ResponseEntity.status(201).body(userService.create(dto));
+    public ResponseEntity<UserResponseDTO> register(@RequestBody @Valid RegisterWithOtpDTO dto) {
+        return ResponseEntity.status(201).body(userService.registerWithOtp(dto));
+    }
+
+    @PostMapping("/send-otp")
+    public ResponseEntity<String> sendOtp(@RequestParam String email) {
+        // Check if email already exists
+        if (userService.existsByEmail(email)) {
+            return ResponseEntity.badRequest().body("Email này đã được sử dụng.");
+        }
+        otpService.sendOtp(email);
+        return ResponseEntity.ok("Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.");
     }
 
     @GetMapping("/check-email")

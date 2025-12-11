@@ -15,6 +15,14 @@ public class ProductDTO {
     private int stock;
     private String image;
     private String description;
+    private String ingredients;
+    private String allergens;
+    private String weight;
+    private String shelfLife;
+    private String storageInstructions;
+    private Boolean isFeatured;
+    private Boolean isActive;
+    private String unit;
     private LocalDateTime createdAt;
 
     private Long categoryId;

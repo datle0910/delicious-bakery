@@ -15,6 +15,7 @@ public class CartItemDTO {
     @NotNull(message = "Product ID in Cart Item cannot be null")
     private Long productId;
     private String productName;
+    private String productImage; // Product image URL
     @Positive(message = "Price must be greater than 0")
     private double price; // Current product price (for display)
     @Positive(message = "Unit price must be greater than 0")

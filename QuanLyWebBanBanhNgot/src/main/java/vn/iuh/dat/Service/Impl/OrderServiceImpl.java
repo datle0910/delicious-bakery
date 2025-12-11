@@ -7,7 +7,10 @@ import vn.iuh.dat.Entity.*;
 import vn.iuh.dat.Repository.CartRepository;
 import vn.iuh.dat.Repository.OrderRepository;
 import vn.iuh.dat.Repository.UserRepository;
+import vn.iuh.dat.Repository.ProductRepository;
 import vn.iuh.dat.Service.IOrderService;
+import vn.iuh.dat.Service.EmailService;
+import vn.iuh.dat.dto.Request.CheckoutRequestDTO;
 import vn.iuh.dat.dto.Response.OrderDTO;
 import vn.iuh.dat.dto.Response.OrderItemDTO;
 import vn.iuh.dat.dto.Response.PaymentDTO;
@@ -23,10 +26,12 @@ public class OrderServiceImpl implements IOrderService {
     private final OrderRepository orderRepo;
     private final UserRepository userRepo;
     private final CartRepository cartRepo;
+    private final ProductRepository productRepo;
+    private final EmailService emailService;
     private final ModelMapper mapper = new ModelMapper();
 
     @Override
-    public OrderDTO checkout(Long userId) {
+    public OrderDTO checkout(Long userId, CheckoutRequestDTO request) {
 
         // Lấy giỏ hàng
         Cart cart = cartRepo.findByUserId(userId)
@@ -38,6 +43,16 @@ public class OrderServiceImpl implements IOrderService {
 
         User customer = cart.getUser();
 
+        // === VALIDATE STOCK & CALCULATE TOTAL QUANTITY ===
+        int totalQuantity = 0;
+        for (CartItem ci : cart.getItems()) {
+            Product product = ci.getProduct();
+            if (product.getStock() < ci.getQuantity()) {
+                throw new RuntimeException("Sản phẩm \"" + product.getName() + "\" không đủ tồn kho.");
+            }
+            totalQuantity += ci.getQuantity();
+        }
+
         // === CREATE ORDER ===
         Order order = new Order();
         order.setCustomer(customer);
@@ -46,8 +61,14 @@ public class OrderServiceImpl implements IOrderService {
         order.setCreatedAt(LocalDateTime.now());
 
         // snapshot fields
-        order.setShippingAddress(customer.getAddress());
-        order.setNote("Default checkout");   // hoặc để null
+        // Nếu request có shippingAddress thì dùng, ngược lại dùng địa chỉ mặc định của khách
+        String shippingAddress = request.getShippingAddress();
+        order.setShippingAddress(
+                (shippingAddress != null && !shippingAddress.isBlank())
+                        ? shippingAddress
+                        : customer.getAddress()
+        );
+        order.setNote(request.getNote());
         order.setUpdatedAt(LocalDateTime.now());
 
         // === COPY CART ITEMS → ORDER ITEMS ===
@@ -76,7 +97,13 @@ public class OrderServiceImpl implements IOrderService {
         order.setItems(orderItems);
 
         // === SHIPPING FEE & TOTAL ===
-        double shippingFee = subtotal * 0.1;
+        // Miễn phí vận chuyển nếu tổng số lượng sản phẩm > 5
+        double shippingFee;
+        if (totalQuantity > 5) {
+            shippingFee = 0;
+        } else {
+            shippingFee = subtotal * 0.1; // 10% phí vận chuyển cho đơn nhỏ
+        }
         double totalAmount = subtotal + shippingFee;
 
         order.setShippingFee(shippingFee);
@@ -87,19 +114,34 @@ public class OrderServiceImpl implements IOrderService {
         payment.setOrder(order);
         payment.setAmount(totalAmount);
         payment.setStatus("PENDING");
-        payment.setMethod("COD"); // default method
+        payment.setMethod(request.getPaymentMethod()); // CASH, STRIPE
         payment.setCreatedAt(LocalDateTime.now());
         payment.setPaidAt(null); // chưa thanh toán
 
         order.setPayment(payment);
 
-        // === SAVE ORDER ===
+        // === INITIAL ORDER STATUS ===
+        order.setStatus("PENDING_CONFIRMATION");
+
+        boolean isStripe = "STRIPE".equalsIgnoreCase(request.getPaymentMethod());
+
+        // === SAVE ORDER & UPDATE STOCK ===
         orderRepo.save(order);
 
-        // === CLEAR CART ===
-        cart.getItems().clear();
-        cart.setUpdatedAt(LocalDateTime.now());
-        cartRepo.save(cart);
+        for (CartItem ci : cart.getItems()) {
+            Product product = ci.getProduct();
+            product.setStock(product.getStock() - ci.getQuantity());
+            productRepo.save(product);
+        }
+
+        // === CLEAR CART (only for non-Stripe payments; Stripe clears on payment success) ===
+        if (!isStripe) {
+            cart.getItems().clear();
+            cart.setUpdatedAt(LocalDateTime.now());
+            cartRepo.save(cart);
+            // === NOTIFY CUSTOMER ===
+            emailService.sendOrderConfirmation(order);
+        }
 
         return toDTO(order);
     }
@@ -145,8 +187,17 @@ public class OrderServiceImpl implements IOrderService {
         Order order = orderRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        if (!order.getStatus().equals("PENDING")) {
-            throw new RuntimeException("Only pending orders can be cancelled");
+        String status = order.getStatus();
+        boolean cancellable = status.equals("PENDING_CONFIRMATION") || status.equals("PREPARING");
+        if (!cancellable) {
+            throw new RuntimeException("Order can only be cancelled before delivery is prepared");
+        }
+
+        // Restore stock for all items in the cancelled order
+        for (OrderItem item : order.getItems()) {
+            Product product = item.getProduct();
+            product.setStock(product.getStock() + item.getQuantity());
+            productRepo.save(product);
         }
 
         order.setStatus("CANCELLED");

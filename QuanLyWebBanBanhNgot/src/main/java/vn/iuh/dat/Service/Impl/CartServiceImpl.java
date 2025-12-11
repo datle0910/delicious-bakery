@@ -115,6 +115,7 @@ public class CartServiceImpl implements ICartService {
             itemDTO.setId(item.getId());
             itemDTO.setProductId(item.getProduct().getId());
             itemDTO.setProductName(item.getProduct().getName());
+            itemDTO.setProductImage(item.getProduct().getImage()); // Product image URL
             itemDTO.setPrice(item.getProduct().getPrice()); // Current product price
             itemDTO.setUnitPrice(item.getUnitPrice()); // Snapshot price when added
             itemDTO.setQuantity(item.getQuantity());

@@ -17,8 +17,8 @@ public class OrderDTO {
     private String code;
 
     @NotBlank(message = "Order status cannot be blank")
-    @Pattern(regexp = "PENDING|SHIPPING|DELIVERED|CANCELLED",
-            message = "Status must be PENDING, SHIPPING, DELIVERED or CANCELLED")
+    @Pattern(regexp = "PENDING_CONFIRMATION|PREPARING|OUT_FOR_DELIVERY|DELIVERED|CANCELLED",
+            message = "Status must be PENDING_CONFIRMATION, PREPARING, OUT_FOR_DELIVERY, DELIVERED or CANCELLED")
     private String status;
 
     private LocalDateTime createdAt;

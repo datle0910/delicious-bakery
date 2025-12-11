@@ -21,21 +21,52 @@ public class RoleServiceImpl implements IRoleService {
     @Override
     public List<RoleDTO> findAll() {
         return repo.findAll().stream()
-                .map(r -> new RoleDTO(r.getId(), r.getName()))
+                .map(r -> RoleDTO.builder()
+                        .id(r.getId())
+                        .name(r.getName())
+                        .description(r.getDescription())
+                        .build())
                 .toList();
     }
 
     @Override
     public RoleDTO findById(Long id) {
         return repo.findById(id)
-                .map(r -> new RoleDTO(r.getId(), r.getName()))
+                .map(r -> RoleDTO.builder()
+                        .id(r.getId())
+                        .name(r.getName())
+                        .description(r.getDescription())
+                        .build())
                 .orElse(null);
     }
 
     @Override
     public RoleDTO save(RoleDTO dto) {
-        Role role = new Role(dto.getId(), dto.getName());
-        return new RoleDTO(repo.save(role).getId(), role.getName());
+        if (dto.getId() != null) {
+            // Update existing role - only update description, keep name unchanged
+            Role existingRole = repo.findById(dto.getId())
+                    .orElseThrow(() -> new RuntimeException("Role not found"));
+            existingRole.setDescription(dto.getDescription());
+            // Name is not updated - it remains unchanged
+            Role saved = repo.save(existingRole);
+            return RoleDTO.builder()
+                    .id(saved.getId())
+                    .name(saved.getName())
+                    .description(saved.getDescription())
+                    .build();
+        } else {
+            // Create new role
+            Role role = Role.builder()
+                    .name(dto.getName())
+                    .description(dto.getDescription())
+                    .build();
+            Role saved = repo.save(role);
+            return RoleDTO.builder()
+                    .id(saved.getId())
+                    .name(saved.getName())
+                    .description(saved.getDescription())
+                    .build();
+        }
     }
 
     @Override

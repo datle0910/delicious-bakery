@@ -1,13 +1,23 @@
 package vn.iuh.dat.Service.Impl;
 
+import com.stripe.Stripe;
+import com.stripe.exception.StripeException;
+import com.stripe.model.PaymentIntent;
+import com.stripe.param.PaymentIntentCreateParams;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import vn.iuh.dat.Configuration.StripeConfig;
 import vn.iuh.dat.Entity.Order;
 import vn.iuh.dat.Entity.Payment;
+import vn.iuh.dat.Repository.CartRepository;
 import vn.iuh.dat.Repository.OrderRepository;
 import vn.iuh.dat.Repository.PaymentRepository;
+import vn.iuh.dat.Service.EmailService;
 import vn.iuh.dat.Service.IPaymentService;
+import vn.iuh.dat.dto.Request.StripePaymentIntentRequest;
 import vn.iuh.dat.dto.Response.PaymentDTO;
+import vn.iuh.dat.dto.Response.StripePaymentIntentResponse;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,6 +28,10 @@ public class PaymentServiceImpl implements IPaymentService {
 
     private final PaymentRepository paymentRepo;
     private final OrderRepository orderRepo;
+    private final StripeConfig stripeConfig;
+    private final CartRepository cartRepo;
+    private final EmailService emailService;
+
 
     @Override
     public PaymentDTO findById(Long id) {
@@ -43,10 +57,24 @@ public class PaymentServiceImpl implements IPaymentService {
             payment.setPaidAt(LocalDateTime.now());
             payment.setStatus("PAID");
 
-            // kết nối domain: order chỉ được ship sau paid
+            // kết nối domain: sau thanh toán chuyển đơn sang PREPARING nếu còn ở PENDING_CONFIRMATION
             Order o = payment.getOrder();
-            o.setStatus("SHIPPING");
-            orderRepo.save(o);
+            if ("PENDING_CONFIRMATION".equals(o.getStatus())) {
+                o.setStatus("PREPARING");
+                orderRepo.save(o);
+            }
+
+            // Clear customer's cart after successful payment (Stripe)
+            if (o.getCustomer() != null) {
+                cartRepo.findByUserId(o.getCustomer().getId()).ifPresent(cart -> {
+                    cart.getItems().clear();
+                    cart.setUpdatedAt(LocalDateTime.now());
+                    cartRepo.save(cart);
+                });
+            }
+
+            // Send confirmation email after successful online payment
+            emailService.sendOrderConfirmation(o);
 
         } else if (status.equals("FAILED")) {
             payment.setStatus("FAILED");
@@ -79,6 +107,43 @@ public class PaymentServiceImpl implements IPaymentService {
 
         return toDTO(payment);
     }
+
+    @Override
+    public StripePaymentIntentResponse createStripePaymentIntent(StripePaymentIntentRequest request) {
+        try {
+            PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
+                    .setAmount((long) (request.getAmount() * 100)) // Convert to cents
+                    .setCurrency(request.getCurrency() != null ? request.getCurrency() : "vnd")
+                    .setAutomaticPaymentMethods(
+                            PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
+                                    .setEnabled(true)
+                                    .build()
+                    )
+                    .putMetadata("orderId", request.getOrderId().toString())
+                    .build();
+
+            PaymentIntent paymentIntent = PaymentIntent.create(params);
+
+            // Update payment record with Stripe payment intent ID
+            if (request.getOrderId() != null) {
+                Order order = orderRepo.findById(request.getOrderId())
+                        .orElseThrow(() -> new RuntimeException("Order not found"));
+                Payment payment = order.getPayment();
+                if (payment != null) {
+                    payment.setTransactionId(paymentIntent.getId());
+                    paymentRepo.save(payment);
+                }
+            }
+
+            return StripePaymentIntentResponse.builder()
+                    .clientSecret(paymentIntent.getClientSecret())
+                    .paymentIntentId(paymentIntent.getId())
+                    .build();
+        } catch (StripeException e) {
+            throw new RuntimeException("Failed to create payment intent: " + e.getMessage(), e);
+        }
+    }
+
 
     // ===================== MAPPER =====================
 
